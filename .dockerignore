@@ -1,0 +1,6 @@
+script/
+other/
+README.md
+.git/
+.gitignore
+.dockerignore

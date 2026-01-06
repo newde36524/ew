@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  ech-wokers: 
+    container_name: ech-wokers
+    network_mode: host
+    restart: always
+    environment:
+      - F=frosty-bar-5bc6.zhu718114245.workers.dev:443
+      - TOKEN=jmrx
+      - L=0.0.0.0:30001
+      - ROUTING=bypass_cn
+    image: 718114245/ew:latest
