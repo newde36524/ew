@@ -710,6 +710,7 @@ func (p *ProxyServer) queryDoHForProxy(dnsQuery []byte) ([]byte, error) {
 	// 创建 HTTP 客户端
 	transport := &http.Transport{
 		TLSClientConfig: tlsCfg,
+		Proxy:           nil, // 显式设置为 nil 表示不使用任何代理
 	}
 
 	// 如果指定了 IP，使用自定义 Dialer

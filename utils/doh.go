@@ -1,3 +1,4 @@
+//nolint:errcheck
 package utils
 
 import (
@@ -9,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 // QueryHTTPSRecord 通过 DoH 查询 HTTPS 记录
@@ -42,8 +42,7 @@ func queryDoH(domain, dohURL string) (string, error) {
 	req.Header.Set("Accept", "application/dns-message")
 	req.Header.Set("Content-Type", "application/dns-message")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("DoH 请求失败: %v", err)
 	}

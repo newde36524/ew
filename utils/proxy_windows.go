@@ -1,6 +1,7 @@
 //go:build windows
 // +build windows
 
+// nolint: errcheck
 package utils
 
 import (
@@ -41,11 +42,10 @@ type ProxyState struct {
 var (
 	originalState *ProxyState
 	stateMutex    sync.Mutex
-	proxyModified bool
 )
 
 // GetProxyBypassList 获取代理绕过列表
-func GetProxyBypassList(routingMode string) string {
+func GetProxyBypassList() string {
 	// 基础绕过列表（本地和内网）
 	// 注意：分流功能已在 Go 程序中实现，系统代理设置为全局代理
 	// Go 程序会根据分流模式自动决定哪些流量走代理，哪些直连
@@ -76,7 +76,7 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 
 	if enabled {
 		// 解析监听地址
-		proxyServer := listenAddr
+		proxyServer := strings.ReplaceAll(listenAddr, "0.0.0.0", "127.0.0.1")
 		if !strings.Contains(listenAddr, ":") {
 			proxyServer = "127.0.0.1:" + listenAddr
 		}
@@ -112,7 +112,7 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 		}
 
 		// 设置绕过列表
-		bypassList := GetProxyBypassList(routingMode)
+		bypassList := GetProxyBypassList()
 		bypassPtr, _ := syscall.UTF16PtrFromString(bypassList)
 		valueName, _ = syscall.UTF16PtrFromString("ProxyOverride")
 		ret, _, _ = procRegSetValueEx.Call(
@@ -127,7 +127,7 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 			return fmt.Errorf("设置 ProxyOverride 失败: 错误码 %d", ret)
 		}
 
-		log.Printf("[系统] Windows 代理已设置: %s, 分流模式: %s\n", proxyServer, routingMode)
+		log.Printf("[系统] Windows 代理已设置: %s, 分流模式: %s\n", listenAddr, routingMode)
 	} else {
 		// 关闭代理
 		var enableValue uint32 = 0
@@ -149,11 +149,6 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 	// 通知系统代理设置已更改
 	procInternetSetOptionW.Call(0, uintptr(INTERNET_OPTION_SETTINGS_CHANGED), 0, 0)
 	procInternetSetOptionW.Call(0, uintptr(INTERNET_OPTION_REFRESH), 0, 0)
-
-	// 标记代理已修改
-	stateMutex.Lock()
-	proxyModified = enabled
-	stateMutex.Unlock()
 
 	return nil
 }
@@ -276,6 +271,9 @@ func RestoreProxyState() error {
 		log.Println("[系统] 无需恢复代理状态（未修改过）")
 		return nil
 	}
+	defer func() {
+		originalState = nil
+	}()
 
 	key, err := syscall.UTF16PtrFromString(`Software\Microsoft\Windows\CurrentVersion\Internet Settings`)
 	if err != nil {

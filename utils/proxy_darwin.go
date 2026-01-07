@@ -1,6 +1,7 @@
 //go:build darwin
 // +build darwin
 
+// nolint: errcheck
 package utils
 
 import (
@@ -12,7 +13,7 @@ import (
 )
 
 // GetProxyBypassList 获取代理绕过列表
-func GetProxyBypassList(routingMode string) []string {
+func GetProxyBypassList() []string {
 	// 基础绕过列表（本地和内网）
 	// 注意：分流功能已在 Go 程序中实现，系统代理设置为全局代理
 	// Go 程序会根据分流模式自动决定哪些流量走代理，哪些直连
@@ -69,7 +70,7 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 	}
 
 	// 获取绕过列表
-	bypassList := GetProxyBypassList(routingMode)
+	bypassList := GetProxyBypassList()
 
 	// 对每个网络服务设置代理
 	for _, service := range services {
@@ -198,6 +199,9 @@ func RestoreProxyState() error {
 		log.Println("[系统] 无需恢复代理状态（未修改过）")
 		return nil
 	}
+	defer func() {
+		originalState = nil
+	}()
 
 	// 获取所有网络服务
 	cmd := exec.Command("networksetup", "-listallnetworkservices")

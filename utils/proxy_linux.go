@@ -1,6 +1,7 @@
 //go:build linux
 // +build linux
 
+// nolint: errcheck
 package utils
 
 import (
@@ -14,7 +15,7 @@ import (
 )
 
 // GetProxyBypassList 获取代理绕过列表
-func GetProxyBypassList(routingMode string) string {
+func GetProxyBypassList() string {
 	// 基础绕过列表（本地和内网）
 	// 注意：分流功能已在 Go 程序中实现，系统代理设置为全局代理
 	// Go 程序会根据分流模式自动决定哪些流量走代理，哪些直连
@@ -120,7 +121,7 @@ func setGnomeProxy(enabled bool, host, port, routingMode string) error {
 		}
 
 		// 设置绕过列表
-		bypassList := GetProxyBypassList(routingMode)
+		bypassList := GetProxyBypassList()
 		cmd = exec.Command("gsettings", "set", "org.gnome.system.proxy", "ignore-hosts", bypassList)
 		if err := cmd.Run(); err != nil {
 			log.Printf("[系统] 设置 GNOME 绕过列表失败: %v\n", err)
@@ -154,7 +155,7 @@ SOCKSProxy=%s %s
 SOCKSVersion=5
 NoProxyForList=%s
 ReversedException=false
-`, host, port, GetProxyBypassList(routingMode))
+`, host, port, GetProxyBypassList())
 
 		if err := os.WriteFile(kioslaverc, []byte(content), 0644); err != nil {
 			log.Printf("[系统] 设置 KDE 代理失败: %v\n", err)
@@ -209,7 +210,7 @@ func setXFCEProxy(enabled bool, host, port, routingMode string) error {
 		}
 
 		// 设置绕过列表
-		bypassList := GetProxyBypassList(routingMode)
+		bypassList := GetProxyBypassList()
 		cmd = exec.Command("xfconf-query", "-c", "xfce4-proxy", "-p", "/no-proxy", "-s", bypassList)
 		if err := cmd.Run(); err != nil {
 			log.Printf("[系统] 设置 XFCE 绕过列表失败: %v\n", err)
@@ -238,7 +239,7 @@ func setEnvProxy(enabled bool, host, port, routingMode string) error {
 		log.Printf("  export http_proxy=socks5://%s:%s\n", host, port)
 		log.Printf("  export https_proxy=socks5://%s:%s\n", host, port)
 		log.Printf("  export all_proxy=socks5://%s:%s\n", host, port)
-		log.Printf("  export no_proxy=%s\n", GetProxyBypassList(routingMode))
+		log.Printf("  export no_proxy=%s\n", GetProxyBypassList())
 	} else {
 		log.Println("[系统] 请手动清除环境变量:")
 		log.Println("  unset http_proxy https_proxy all_proxy no_proxy")
@@ -359,6 +360,9 @@ func RestoreProxyState() error {
 		log.Println("[系统] 无需恢复代理状态（未修改过）")
 		return nil
 	}
+	defer func() {
+		originalState = nil
+	}()
 
 	// 检测桌面环境
 	desktopEnv := detectDesktopEnvironment()

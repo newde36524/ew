@@ -34,4 +34,4 @@ WORKDIR /app
 # 从编译阶段复制二进制文件
 COPY --from=builder /app/app /app/app
 
-ENTRYPOINT ["/app/app", "-f", "${F}", "-token", "${TOKEN}", "-ip", "saas.sin.fan", "-l", "${L}", "-routing", "${ROUTING}"]
+ENTRYPOINT /app/app -f "$F" -token "$TOKEN" -ip saas.sin.fan -l "$L" -routing "$ROUTING"

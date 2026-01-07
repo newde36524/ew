@@ -146,11 +146,7 @@ func HandleDirectConnection(conn net.Conn, target, clientAddr string, mode int, 
 }
 
 func GetDataByUrl(url string) ([]byte, error) {
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := client.Get(url)
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("下载失败: %w", err)
 	}
