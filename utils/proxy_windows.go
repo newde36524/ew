@@ -127,7 +127,7 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 			return fmt.Errorf("设置 ProxyOverride 失败: 错误码 %d", ret)
 		}
 
-		log.Printf("[系统] Windows 代理已设置: %s, 分流模式: %s\n", listenAddr, routingMode)
+		log.Printf("[系统] Windows 代理已设置: %s, 分流模式: %s\n", proxyServer, routingMode)
 	} else {
 		// 关闭代理
 		var enableValue uint32 = 0

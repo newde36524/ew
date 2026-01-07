@@ -33,7 +33,6 @@ type ProxyState struct {
 var (
 	originalState *ProxyState
 	stateMutex    sync.Mutex
-	proxyModified bool
 )
 
 // SetSystemProxy 设置 Linux 系统代理

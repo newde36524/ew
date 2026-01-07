@@ -36,7 +36,6 @@ type ProxyState struct {
 var (
 	originalState *ProxyState
 	stateMutex    sync.Mutex
-	proxyModified bool
 )
 
 // SetSystemProxy 设置 macOS 系统代理
@@ -112,11 +111,6 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 	} else {
 		log.Println("[系统] macOS 代理已关闭")
 	}
-
-	// 标记代理已修改
-	stateMutex.Lock()
-	proxyModified = enabled
-	stateMutex.Unlock()
 
 	return nil
 }

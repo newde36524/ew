@@ -21,12 +21,15 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# 证书阶段：从 Alpine 提取证书
+FROM alpine:latest AS certs
+RUN apk --no-cache add ca-certificates
 
 # 使用固定版本（避免 latest 的不确定性）
-FROM alpine:3.19
+FROM scratch
 
-# 安装 CA 证书并更新证书库
-RUN apk add --no-cache ca-certificates && update-ca-certificates
+# 复制证书
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # 设置工作目录
 WORKDIR /app
@@ -34,4 +37,4 @@ WORKDIR /app
 # 从编译阶段复制二进制文件
 COPY --from=builder /app/app /app/app
 
-ENTRYPOINT /app/app -f "$F" -token "$TOKEN" -ip saas.sin.fan -l "$L" -routing "$ROUTING"
+ENTRYPOINT ["./app"]

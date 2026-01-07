@@ -46,6 +46,7 @@ func (p *ProxyServer) Run() error {
 		log.Fatalf("[启动] 获取 ECH 配置失败: %v", err)
 	}
 	p.IPLoader.LoadWithRoutingMode()
+
 	return p.runProxyServer()
 }
 
@@ -57,6 +58,10 @@ func (p *ProxyServer) runProxyServer() error {
 	defer listener.Close() //nolint:errcheck
 
 	log.Printf("[代理] 服务器启动: %s (支持 SOCKS5 和 HTTP)", p.Config.ListenAddr)
+
+	//关闭控制台日志输出提升性能
+	log.Default().SetOutput(io.Discard)
+
 	log.Printf("[代理] 后端服务器: %s", p.Config.ServerAddr)
 	if p.Config.ServerIP != "" {
 		log.Printf("[代理] 使用固定 IP: %s", p.Config.ServerIP)

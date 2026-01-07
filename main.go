@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -57,15 +56,16 @@ func main() {
 	//设置安全退出，处理善后工作
 	safeExit()
 
-	//关闭控制台日志输出提升性能
-	log.Default().SetOutput(io.Discard)
-
 	//启动代理
 	run()
 }
 
 // setSystemProxy 设置系统代理（根据操作系统自动选择）
 func setSystemProxy(enabled bool, listenAddr, routingMode string) {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		log.Println("[系统] 检测到 Docker 容器环境，跳过系统代理设置")
+		return
+	}
 	// 保存当前代理状态
 	if err := utils.SaveProxyState(); err != nil {
 		log.Printf("[系统] 保存代理状态失败: %v\n", err)
