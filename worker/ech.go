@@ -31,7 +31,7 @@ func (e *Ech) PrepareECH() error {
 	if err != nil {
 		return fmt.Errorf("DNS 查询失败: %w", err)
 	}
-	if echBase64 == "" {
+	if len(echBase64) == 0 {
 		return errors.New("未找到 ECH 参数")
 	}
 	raw, err := base64.StdEncoding.DecodeString(echBase64)

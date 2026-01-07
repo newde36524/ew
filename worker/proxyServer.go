@@ -63,7 +63,7 @@ func (p *ProxyServer) runProxyServer() error {
 	log.Default().SetOutput(io.Discard)
 
 	log.Printf("[代理] 后端服务器: %s", p.Config.ServerAddr)
-	if p.Config.ServerIP != "" {
+	if len(p.Config.ServerIP) != 0 {
 		log.Printf("[代理] 使用固定 IP: %s", p.Config.ServerIP)
 	}
 
@@ -137,7 +137,7 @@ func (p *ProxyServer) handleHTTP(conn net.Conn, clientAddr string, firstByte byt
 			return
 		}
 		line = strings.TrimRight(line, "\r\n")
-		if line == "" {
+		if len(line) == 0 {
 			break
 		}
 		headerLines = append(headerLines, line)
@@ -182,7 +182,7 @@ func (p *ProxyServer) handleHTTP(conn net.Conn, clientAddr string, firstByte byt
 			path = requestURL
 		}
 
-		if target == "" {
+		if len(target) == 0 {
 			conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n")) //nolint:errcheck
 			return
 		}
@@ -208,7 +208,7 @@ func (p *ProxyServer) handleHTTP(conn net.Conn, clientAddr string, firstByte byt
 		requestBuilder.WriteString("\r\n")
 
 		// 如果有请求体，需要读取并附加
-		if contentLength := headers["content-length"]; contentLength != "" {
+		if contentLength := headers["content-length"]; len(contentLength) != 0 {
 			var length int
 			fmt.Sscanf(contentLength, "%d", &length) //nolint:errcheck
 			if length > 0 && length < 10*1024*1024 { // 限制 10MB
@@ -279,7 +279,7 @@ func (p *ProxyServer) handleTunnel(conn net.Conn, target, clientAddr string, mod
 	conn.SetDeadline(time.Time{}) //nolint:errcheck
 
 	// 如果没有预设的 firstFrame，尝试读取第一帧数据（仅 SOCKS5）
-	if firstFrame == "" && mode == utils.ModeSOCKS5 {
+	if len(firstFrame) == 0 && mode == utils.ModeSOCKS5 {
 		_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 		buffer := make([]byte, 32768)
 		n, _ := conn.Read(buffer)
@@ -359,7 +359,7 @@ func (p *ProxyServer) handleTunnel(conn net.Conn, target, clientAddr string, mod
 			}
 
 			if mt == websocket.TextMessage {
-				if string(msg) == "CLOSE" {
+				if len(msg) == 5 && string(msg) == "CLOSE" {
 					done <- true
 					return
 				}
@@ -663,7 +663,7 @@ func (p *ProxyServer) dialWebSocketWithECH(maxRetries int) (*websocket.Conn, err
 		dialer := websocket.Dialer{
 			TLSClientConfig: tlsCfg,
 			Subprotocols: func() []string {
-				if p.Config.Token == "" {
+				if len(p.Config.Token) == 0 {
 					return nil
 				}
 				return []string{p.Config.Token}
@@ -671,7 +671,7 @@ func (p *ProxyServer) dialWebSocketWithECH(maxRetries int) (*websocket.Conn, err
 			HandshakeTimeout: 10 * time.Second,
 		}
 
-		if p.Config.ServerIP != "" {
+		if len(p.Config.ServerIP) != 0 {
 			dialer.NetDial = func(network, address string) (net.Conn, error) {
 				_, port, err := net.SplitHostPort(address)
 				if err != nil {
@@ -719,7 +719,7 @@ func (p *ProxyServer) queryDoHForProxy(dnsQuery []byte) ([]byte, error) {
 	}
 
 	// 如果指定了 IP，使用自定义 Dialer
-	if p.Config.ServerIP != "" {
+	if len(p.Config.ServerIP) != 0 {
 		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			_, port, err := net.SplitHostPort(addr)
 			if err != nil {

@@ -194,7 +194,7 @@ func (i *IPLoader) LoadChinaIPList() error {
 	scanner := bufio.NewScanner(bytes.NewBuffer(data))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
+		if len(line) == 0 || strings.HasPrefix(line, "#") {
 			continue
 		}
 
@@ -248,7 +248,7 @@ func (i *IPLoader) LoadChinaIPV6List() error {
 	scanner := bufio.NewScanner(bytes.NewBuffer(data))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
+		if len(line) == 0 || strings.HasPrefix(line, "#") {
 			continue
 		}
 

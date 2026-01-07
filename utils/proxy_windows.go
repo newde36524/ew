@@ -315,7 +315,7 @@ func RestoreProxyState() error {
 	}
 
 	// 恢复 ProxyServer
-	if originalState.ProxyServer != "" {
+	if len(originalState.ProxyServer) != 0 {
 		proxyServerPtr, _ := syscall.UTF16PtrFromString(originalState.ProxyServer)
 		valueName, _ = syscall.UTF16PtrFromString("ProxyServer")
 		ret, _, _ = procRegSetValueEx.Call(
@@ -332,7 +332,7 @@ func RestoreProxyState() error {
 	}
 
 	// 恢复 ProxyOverride
-	if originalState.BypassList != "" {
+	if len(originalState.BypassList) != 0 {
 		bypassPtr, _ := syscall.UTF16PtrFromString(originalState.BypassList)
 		valueName, _ = syscall.UTF16PtrFromString("ProxyOverride")
 		ret, _, _ = procRegSetValueEx.Call(

@@ -62,10 +62,11 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 	lines := strings.Split(string(output), "\n")
 	var services []string
 	for i, line := range lines {
-		if i == 0 || strings.TrimSpace(line) == "" || strings.HasPrefix(line, "*") {
+		line = strings.TrimSpace(line)
+		if i == 0 || len(line) == 0 || strings.HasPrefix(line, "*") {
 			continue
 		}
-		services = append(services, strings.TrimSpace(line))
+		services = append(services, line)
 	}
 
 	// 获取绕过列表
@@ -163,10 +164,11 @@ func SaveProxyState() error {
 	lines := strings.Split(string(output), "\n")
 	var services []string
 	for i, line := range lines {
-		if i == 0 || strings.TrimSpace(line) == "" || strings.HasPrefix(line, "*") {
+		line = strings.TrimSpace(line)
+		if i == 0 || len(line) == 0 || strings.HasPrefix(line, "*") {
 			continue
 		}
-		services = append(services, strings.TrimSpace(line))
+		services = append(services, line)
 	}
 
 	if len(services) == 0 {
@@ -208,15 +210,16 @@ func RestoreProxyState() error {
 	lines := strings.Split(string(output), "\n")
 	var services []string
 	for i, line := range lines {
-		if i == 0 || strings.TrimSpace(line) == "" || strings.HasPrefix(line, "*") {
+		line = strings.TrimSpace(line)
+		if i == 0 || len(line) == 0 || strings.HasPrefix(line, "*") {
 			continue
 		}
-		services = append(services, strings.TrimSpace(line))
+		services = append(services, line)
 	}
 
 	// 对每个网络服务恢复代理
 	for _, service := range services {
-		if originalState.Enabled && originalState.ProxyServer != "" {
+		if originalState.Enabled && len(originalState.ProxyServer) != 0 {
 			// 解析服务器地址
 			parts := strings.Split(originalState.ProxyServer, ":")
 			if len(parts) == 2 {

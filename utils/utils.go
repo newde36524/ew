@@ -16,8 +16,8 @@ import (
 
 func init() {
 	http.DefaultClient.Timeout = 30 * time.Second
-	http.DefaultClient.Transport = &http.Transport{
-		Proxy: nil,
+	if transport, ok := http.DefaultClient.Transport.(*http.Transport); ok {
+		transport.Proxy = nil
 	}
 }
 
@@ -134,7 +134,7 @@ func HandleDirectConnection(conn net.Conn, target, clientAddr string, mode int, 
 	}
 
 	// 如果有预设的第一帧数据，先发送
-	if firstFrame != "" {
+	if len(firstFrame) != 0 {
 		if _, err := targetConn.Write([]byte(firstFrame)); err != nil {
 			return err
 		}
@@ -161,21 +161,22 @@ func HandleDirectConnection(conn net.Conn, target, clientAddr string, mode int, 
 }
 
 func GetDataByUrl(url string, header map[string]string) (*http.Response, error) {
-	// client := http.Client{}
-	// cf, err := BuildTLSConfig(url)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// client.Transport = &http.Transport{
-	// 	Proxy:           nil,
-	// 	TLSClientConfig: cf,
-	// }
+	client := http.Client{}
+	cf, err := BuildTLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	client.Transport = &http.Transport{
+		Proxy:           nil,
+		TLSClientConfig: cf,
+	}
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
 
 	for k, v := range header {
 		req.Header.Set(k, v)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	// resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("下载失败: %w", err)
 	}
@@ -199,19 +200,13 @@ func BuildTLSConfigWithECH(addr string) (*tls.Config, error) {
 	return config, nil
 }
 
-func BuildTLSConfig(addr string) (*tls.Config, error) {
-	host, err := getHostByAddr(addr)
-	if err != nil {
-		return nil, err
-	}
+func BuildTLSConfig() (*tls.Config, error) {
 	roots, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, fmt.Errorf("加载系统根证书失败: %w", err)
 	}
 	config := &tls.Config{
-		MinVersion: tls.VersionTLS13,
-		ServerName: host,
-		RootCAs:    roots,
+		RootCAs: roots,
 	}
 	return config, nil
 }

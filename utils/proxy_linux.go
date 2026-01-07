@@ -67,7 +67,7 @@ func SetSystemProxy(enabled bool, listenAddr, routingMode string) error {
 // detectDesktopEnvironment 检测桌面环境
 func detectDesktopEnvironment() string {
 	// 检查 XDG_CURRENT_DESKTOP 环境变量
-	if xdgDesktop := os.Getenv("XDG_CURRENT_DESKTOP"); xdgDesktop != "" {
+	if xdgDesktop := os.Getenv("XDG_CURRENT_DESKTOP"); len(xdgDesktop) != 0 {
 		return strings.ToLower(strings.TrimSpace(xdgDesktop))
 	}
 
@@ -272,7 +272,7 @@ func getCurrentProxyState() (*ProxyState, error) {
 				output, _ = cmd.CombinedOutput()
 				port := strings.TrimSpace(strings.Trim(string(output), "'"))
 
-				if host != "" && port != "" {
+				if len(host) != 0 && len(port) != 0 {
 					state.ProxyServer = host + ":" + port
 				}
 
@@ -320,7 +320,7 @@ func getCurrentProxyState() (*ProxyState, error) {
 				output, _ = cmd.CombinedOutput()
 				port := strings.TrimSpace(string(output))
 
-				if host != "" && port != "" {
+				if len(host) != 0 && len(port) != 0 {
 					state.ProxyServer = host + ":" + port
 				}
 
@@ -368,7 +368,7 @@ func RestoreProxyState() error {
 
 	switch desktopEnv {
 	case "gnome", "gnome-wayland", "gnome-xorg":
-		if originalState.Enabled && originalState.ProxyServer != "" {
+		if originalState.Enabled && len(originalState.ProxyServer) != 0 {
 			parts := strings.Split(originalState.ProxyServer, ":")
 			if len(parts) == 2 {
 				host := parts[0]
@@ -386,7 +386,7 @@ func RestoreProxyState() error {
 				cmd.Run()
 
 				// 设置绕过列表
-				if originalState.BypassList != "" {
+				if len(originalState.BypassList) != 0 {
 					cmd = exec.Command("gsettings", "set", "org.gnome.system.proxy", "ignore-hosts", originalState.BypassList)
 					cmd.Run()
 				}
@@ -400,7 +400,7 @@ func RestoreProxyState() error {
 		configDir := filepath.Join(os.Getenv("HOME"), ".config")
 		kioslaverc := filepath.Join(configDir, "kioslaverc")
 
-		if originalState.Enabled && originalState.ProxyServer != "" {
+		if originalState.Enabled && len(originalState.ProxyServer) != 0 {
 			content := fmt.Sprintf(`[Proxy Settings]
 ProxyType=1
 SOCKSProxy=%s
@@ -419,7 +419,7 @@ ProxyType=0
 		cmd := exec.Command("qdbus", "org.kde.kded5", "/modules/proxy", "org.kde.KProxyProxyManager.proxyChanged")
 		_ = cmd.Run()
 	case "xfce":
-		if originalState.Enabled && originalState.ProxyServer != "" {
+		if originalState.Enabled && len(originalState.ProxyServer) != 0 {
 			parts := strings.Split(originalState.ProxyServer, ":")
 			if len(parts) == 2 {
 				host := parts[0]
@@ -437,7 +437,7 @@ ProxyType=0
 				cmd.Run()
 
 				// 设置绕过列表
-				if originalState.BypassList != "" {
+				if len(originalState.BypassList) != 0 {
 					cmd = exec.Command("xfconf-query", "-c", "xfce4-proxy", "-p", "/no-proxy", "-s", originalState.BypassList)
 					cmd.Run()
 				}

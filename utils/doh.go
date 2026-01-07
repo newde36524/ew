@@ -109,7 +109,7 @@ func parseDNSResponse(response []byte) (string, error) {
 		offset += int(dataLen)
 
 		if rrType == typeHTTPS {
-			if ech := parseHTTPSRecord(data); ech != "" {
+			if ech := parseHTTPSRecord(data); len(ech) != 0 {
 				return ech, nil
 			}
 		}
