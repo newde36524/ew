@@ -21,15 +21,12 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 证书阶段：从 Alpine 提取证书
-FROM alpine:latest AS certs
-RUN apk --no-cache add ca-certificates
 
 # 使用固定版本（避免 latest 的不确定性）
-FROM scratch
+FROM alpine:3.19
 
-# 复制证书
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# 安装 CA 证书并更新证书库
+RUN apk add --no-cache ca-certificates && update-ca-certificates
 
 # 设置工作目录
 WORKDIR /app

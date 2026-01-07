@@ -1,3 +1,4 @@
+// nolint: errcheck
 package worker
 
 import (
@@ -5,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -44,19 +46,29 @@ func NewIPLoader(routingMode string) *IPLoader {
 		ipv4DataSync: utils.NewFileSync("IPV4", "chn_ip.txt", func() ([]byte, error) {
 			url := "https://gh-proxy.com/https://raw.githubusercontent.com/mayaxcn/china-ip-list/refs/heads/master/chn_ip.txt"
 			log.Printf("[下载] 正在下载 IP 列表")
-			content, err := utils.GetDataByUrl(url)
+			resp, err := utils.GetDataByUrl(url, nil)
 			if err != nil {
 				return nil, fmt.Errorf("自动下载 IPv4 列表失败: %w", err)
+			}
+			defer resp.Body.Close()
+			content, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("读取下载内容失败: %w", err)
 			}
 			return content, nil
 		}),
 		ipv6DataSync: utils.NewFileSync("IPV6", "chn_ip_v6.txt", func() ([]byte, error) {
 			url := "https://gh-proxy.com/https://raw.githubusercontent.com/mayaxcn/china-ip-list/refs/heads/master/chn_ip_v6.txt"
-			log.Printf("[下载] 正在下载 IP")
-			content, err := utils.GetDataByUrl(url)
+			log.Printf("[下载] 正在下载 IP 列表")
+			resp, err := utils.GetDataByUrl(url, nil)
 			if err != nil {
 				log.Printf("[警告] 自动下载 IPv6 列表失败: %v，将跳过 IPv6 支持", err)
 				return nil, nil // IPv6 列表下载失败不算致命错误
+			}
+			defer resp.Body.Close()
+			content, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("读取下载内容失败: %w", err)
 			}
 			return content, nil
 		}),

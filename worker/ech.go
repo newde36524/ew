@@ -2,7 +2,6 @@ package worker
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -61,21 +60,13 @@ func (e *Ech) GetECHList() ([]byte, error) {
 }
 
 func (e *Ech) BuildTLSConfigWithECH(serverName string, echList []byte) (*tls.Config, error) {
-	roots, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, fmt.Errorf("加载系统根证书失败: %w", err)
-	}
-
 	if len(echList) == 0 {
 		return nil, errors.New("ECH 配置为空，这是必需功能")
 	}
-
-	config := &tls.Config{
-		MinVersion: tls.VersionTLS13,
-		ServerName: serverName,
-		RootCAs:    roots,
+	config, err := utils.BuildTLSConfigWithECH(serverName)
+	if err != nil {
+		return nil, err
 	}
-
 	// 使用反射设置 ECH 字段（ECH 是核心功能，必须设置成功）
 	if err := e.setECHConfig(config, echList); err != nil {
 		return nil, fmt.Errorf("设置 ECH 配置失败（需要 Go 1.23+ 或支持 ECH 的版本）: %w", err)
@@ -107,6 +98,7 @@ func (e *Ech) setECHConfig(config *tls.Config, echList []byte) error {
 
 	return nil
 }
+
 func (e *Ech) GetTlsCfg() (*tls.Config, error) {
 	echBytes, err := e.GetECHList()
 	if err != nil {

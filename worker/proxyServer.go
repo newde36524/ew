@@ -655,7 +655,7 @@ func (p *ProxyServer) dialWebSocketWithECH(maxRetries int) (*websocket.Conn, err
 			return nil, echErr
 		}
 
-		tlsCfg, tlsErr := p.Ech.BuildTLSConfigWithECH(host, echBytes)
+		tlsCfg, tlsErr := p.Ech.BuildTLSConfigWithECH(p.Config.ServerAddr, echBytes)
 		if tlsErr != nil {
 			return nil, tlsErr
 		}

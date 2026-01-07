@@ -2,14 +2,24 @@
 package utils
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
+
+func init() {
+	http.DefaultClient.Timeout = 30 * time.Second
+	http.DefaultClient.Transport = &http.Transport{
+		Proxy: nil,
+	}
+}
 
 // IpToUint32 将IP地址转换为uint32
 func IpToUint32(ip net.IP) uint32 {
@@ -60,6 +70,11 @@ func ParseServerAddr(addr string) (host, port, path string, err error) {
 	}
 
 	return host, port, path, nil
+}
+
+func getHostByAddr(addr string) (host string, err error) {
+	u, err := url.Parse(addr)
+	return u.Host, err
 }
 
 // ======================== 响应辅助函数 ========================
@@ -145,21 +160,58 @@ func HandleDirectConnection(conn net.Conn, target, clientAddr string, mode int, 
 	return nil
 }
 
-func GetDataByUrl(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+func GetDataByUrl(url string, header map[string]string) (*http.Response, error) {
+	// client := http.Client{}
+	// cf, err := BuildTLSConfig(url)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// client.Transport = &http.Transport{
+	// 	Proxy:           nil,
+	// 	TLSClientConfig: cf,
+	// }
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+
+	for k, v := range header {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("下载失败: %w", err)
 	}
-	defer resp.Body.Close()
+	return resp, nil
+}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("下载失败: HTTP %d", resp.StatusCode)
-	}
-
-	// 读取内容
-	content, err := io.ReadAll(resp.Body)
+func BuildTLSConfigWithECH(addr string) (*tls.Config, error) {
+	host, _, _, err := ParseServerAddr(addr)
 	if err != nil {
-		return nil, fmt.Errorf("读取下载内容失败: %w", err)
+		return nil, err
 	}
-	return content, nil
+	roots, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("加载系统根证书失败: %w", err)
+	}
+	config := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+		ServerName: host,
+		RootCAs:    roots,
+	}
+	return config, nil
+}
+
+func BuildTLSConfig(addr string) (*tls.Config, error) {
+	host, err := getHostByAddr(addr)
+	if err != nil {
+		return nil, err
+	}
+	roots, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("加载系统根证书失败: %w", err)
+	}
+	config := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+		ServerName: host,
+		RootCAs:    roots,
+	}
+	return config, nil
 }

@@ -35,14 +35,11 @@ func queryDoH(domain, dohURL string) (string, error) {
 	q.Set("dns", dnsBase64)
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return "", fmt.Errorf("创建请求失败: %v", err)
-	}
-	req.Header.Set("Accept", "application/dns-message")
-	req.Header.Set("Content-Type", "application/dns-message")
+	resp, err := GetDataByUrl(u.String(), map[string]string{
+		"Accept":       "application/dns-message",
+		"Content-Type": "application/dns-message",
+	})
 
-	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("DoH 请求失败: %v", err)
 	}
