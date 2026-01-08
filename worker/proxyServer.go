@@ -262,21 +262,8 @@ func (p *ProxyServer) handleTunnel(conn net.Conn, target, clientAddr string, mod
 
 	// 保活
 	stopPing := make(chan bool)
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				mu.Lock()
-				wsConn.WriteMessage(websocket.PingMessage, nil) //nolint:errcheck
-				mu.Unlock()
-			case <-stopPing:
-				return
-			}
-		}
-	}()
 	defer close(stopPing)
+	go p.keepAlive(stopPing, wsConn, &mu)
 
 	conn.SetDeadline(time.Time{}) //nolint:errcheck
 
@@ -329,54 +316,83 @@ func (p *ProxyServer) handleTunnel(conn net.Conn, target, clientAddr string, mod
 	done := make(chan bool, 2)
 
 	// Client -> Server
-	go func() {
-		buf := make([]byte, 32768)
-		for {
-			n, err := conn.Read(buf)
-			if err != nil {
-				mu.Lock()
-				wsConn.WriteMessage(websocket.TextMessage, []byte("CLOSE")) //nolint:errcheck
-				mu.Unlock()
-				done <- true
-				return
-			}
-
-			mu.Lock()
-			err = wsConn.WriteMessage(websocket.BinaryMessage, buf[:n])
-			mu.Unlock()
-			if err != nil {
-				done <- true
-				return
-			}
-		}
-	}()
+	go p.clientToServer(conn, wsConn, &mu, done, stopPing)
 
 	// Server -> Client
-	go func() {
-		for {
-			mt, msg, err := wsConn.ReadMessage()
-			if err != nil {
-				done <- true
-				return
-			}
-
-			if mt == websocket.TextMessage {
-				if len(msg) == 5 && string(msg) == "CLOSE" {
-					done <- true
-					return
-				}
-			}
-
-			if _, err := conn.Write(msg); err != nil {
-				done <- true
-				return
-			}
-		}
-	}()
+	go p.serverToClient(conn, wsConn, done, stopPing)
 
 	<-done
 	log.Printf("[代理] %s 已断开: %s", clientAddr, target)
 	return nil
+}
+
+func (*ProxyServer) keepAlive(stopPing <-chan bool, wsConn *websocket.Conn, mu *sync.Mutex) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			mu.Lock()
+			wsConn.WriteMessage(websocket.PingMessage, nil) //nolint:errcheck
+			mu.Unlock()
+		case <-stopPing:
+			return
+		}
+	}
+}
+
+func (*ProxyServer) clientToServer(conn net.Conn, wsConn *websocket.Conn, mu *sync.Mutex, done chan<- bool, stopPing <-chan bool) {
+	buf := make([]byte, 32768)
+	for {
+		select {
+		case <-stopPing:
+			return
+		default:
+		}
+		n, err := conn.Read(buf)
+		if err != nil {
+			mu.Lock()
+			wsConn.WriteMessage(websocket.TextMessage, []byte("CLOSE")) //nolint:errcheck
+			mu.Unlock()
+			done <- true
+			return
+		}
+
+		mu.Lock()
+		err = wsConn.WriteMessage(websocket.BinaryMessage, buf[:n])
+		mu.Unlock()
+		if err != nil {
+			done <- true
+			return
+		}
+	}
+}
+
+func (*ProxyServer) serverToClient(conn net.Conn, wsConn *websocket.Conn, done chan<- bool, stopPing <-chan bool) {
+	for {
+		select {
+		case <-stopPing:
+			return
+		default:
+		}
+		mt, msg, err := wsConn.ReadMessage()
+		if err != nil {
+			done <- true
+			return
+		}
+
+		if mt == websocket.TextMessage {
+			if len(msg) == 5 && string(msg) == "CLOSE" {
+				done <- true
+				return
+			}
+		}
+
+		if _, err := conn.Write(msg); err != nil {
+			done <- true
+			return
+		}
+	}
 }
 
 // ======================== SOCKS5 处理 ========================
