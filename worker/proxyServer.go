@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+
+	"github.com/newde36524/ew/utils/log"
+
 	"net"
 	"net/http"
 	"strings"
@@ -59,8 +61,8 @@ func (p *ProxyServer) runProxyServer() error {
 
 	log.Printf("[代理] 服务器启动: %s (支持 SOCKS5 和 HTTP)", p.Config.ListenAddr)
 
-	//关闭控制台日志输出提升性能
-	log.Default().SetOutput(io.Discard)
+	// //关闭控制台日志输出提升性能
+	// log.Default().SetOutput(io.Discard)
 
 	log.Printf("[代理] 后端服务器: %s", p.Config.ServerAddr)
 	if len(p.Config.ServerIP) != 0 {

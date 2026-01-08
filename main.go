@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
-	"log"
+
+	"github.com/newde36524/ew/utils/log"
+
 	"os"
 	"os/signal"
 	"syscall"

@@ -6,7 +6,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"log"
+
+	"github.com/newde36524/ew/utils/log"
+
 	"net"
 	"net/http"
 	"net/url"

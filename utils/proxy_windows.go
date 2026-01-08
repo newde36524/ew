@@ -6,7 +6,9 @@ package utils
 
 import (
 	"fmt"
-	"log"
+
+	"github.com/newde36524/ew/utils/log"
+
 	"strings"
 	"sync"
 	"syscall"

@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+
+	"github.com/newde36524/ew/utils/log"
+
 	"net"
 	"strings"
 	"sync"

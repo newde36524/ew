@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log"
+
+	"github.com/newde36524/ew/utils/log"
+
 	"reflect"
 	"sync"
 
