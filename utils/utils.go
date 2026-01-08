@@ -161,22 +161,11 @@ func HandleDirectConnection(conn net.Conn, target, clientAddr string, mode int, 
 }
 
 func GetDataByUrl(url string, header map[string]string) (*http.Response, error) {
-	client := http.Client{}
-	cf, err := BuildTLSConfig()
-	if err != nil {
-		return nil, err
-	}
-	client.Transport = &http.Transport{
-		Proxy:           nil,
-		TLSClientConfig: cf,
-	}
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
-
 	for k, v := range header {
 		req.Header.Set(k, v)
 	}
-	// resp, err := http.DefaultClient.Do(req)
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("下载失败: %w", err)
 	}
