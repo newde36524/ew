@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/newde36524/ew/utils"
@@ -84,7 +83,7 @@ func (p *ProxyServer) handleConnection(conn net.Conn) {
 	defer conn.Close() //nolint:errcheck
 
 	clientAddr := conn.RemoteAddr().String()
-	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(60 * time.Second))
 
 	// 读取第一个字节判断协议
 	buf := make([]byte, 1)
@@ -258,12 +257,10 @@ func (p *ProxyServer) handleTunnel(conn net.Conn, target, clientAddr string, mod
 	}
 	defer wsConn.Close() //nolint:errcheck
 
-	var mu sync.Mutex
-
 	// 保活
 	stopPing := make(chan bool)
 	defer close(stopPing)
-	go p.keepAlive(stopPing, wsConn, &mu)
+	go p.keepAlive(stopPing, wsConn)
 
 	conn.SetDeadline(time.Time{}) //nolint:errcheck
 
@@ -280,10 +277,7 @@ func (p *ProxyServer) handleTunnel(conn net.Conn, target, clientAddr string, mod
 
 	// 发送连接请求
 	connectMsg := fmt.Sprintf("CONNECT:%s|%s", target, firstFrame)
-	mu.Lock()
-	err = wsConn.WriteMessage(websocket.TextMessage, []byte(connectMsg))
-	mu.Unlock()
-	if err != nil {
+	if err = wsConn.WriteMessage(websocket.TextMessage, []byte(connectMsg)); err != nil {
 		utils.SendErrorResponse(conn, mode)
 		return err
 	}
@@ -313,84 +307,79 @@ func (p *ProxyServer) handleTunnel(conn net.Conn, target, clientAddr string, mod
 	log.Printf("[代理] %s 已连接: %s", clientAddr, target)
 
 	// 双向转发
-	done := make(chan bool, 2)
+	done := make(chan struct{})
 
 	// Client -> Server
-	go p.clientToServer(conn, wsConn, &mu, done, stopPing)
+	go p.clientToServer(conn, wsConn, done)
 
 	// Server -> Client
-	go p.serverToClient(conn, wsConn, done, stopPing)
+	go p.serverToClient(conn, wsConn, done)
 
 	<-done
 	log.Printf("[代理] %s 已断开: %s", clientAddr, target)
 	return nil
 }
 
-func (*ProxyServer) keepAlive(stopPing <-chan bool, wsConn *websocket.Conn, mu *sync.Mutex) {
+func (*ProxyServer) keepAlive(stopPing <-chan bool, wsConn *utils.WebSocketWrap) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			mu.Lock()
 			wsConn.WriteMessage(websocket.PingMessage, nil) //nolint:errcheck
-			mu.Unlock()
 		case <-stopPing:
 			return
 		}
 	}
 }
 
-func (*ProxyServer) clientToServer(conn net.Conn, wsConn *websocket.Conn, mu *sync.Mutex, done chan<- bool, stopPing <-chan bool) {
-	buf := make([]byte, 32768)
-	for {
+func (*ProxyServer) clientToServer(conn net.Conn, wsConn *utils.WebSocketWrap, done chan<- struct{}) error {
+	defer func() {
 		select {
-		case <-stopPing:
-			return
+		case done <- struct{}{}:
 		default:
 		}
+	}()
+	buf := make([]byte, 32*1024)
+	for {
 		n, err := conn.Read(buf)
 		if err != nil {
-			mu.Lock()
+			fmt.Println("clientToServer 1", err)
 			wsConn.WriteMessage(websocket.TextMessage, []byte("CLOSE")) //nolint:errcheck
-			mu.Unlock()
-			done <- true
-			return
+			return err
 		}
 
-		mu.Lock()
 		err = wsConn.WriteMessage(websocket.BinaryMessage, buf[:n])
-		mu.Unlock()
 		if err != nil {
-			done <- true
-			return
+			fmt.Println("clientToServer 2", err)
+			return err
 		}
 	}
 }
 
-func (*ProxyServer) serverToClient(conn net.Conn, wsConn *websocket.Conn, done chan<- bool, stopPing <-chan bool) {
-	for {
+func (*ProxyServer) serverToClient(conn net.Conn, wsConn *utils.WebSocketWrap, done chan<- struct{}) error {
+	defer func() {
 		select {
-		case <-stopPing:
-			return
+		case done <- struct{}{}:
 		default:
 		}
+	}()
+	for {
 		mt, msg, err := wsConn.ReadMessage()
 		if err != nil {
-			done <- true
-			return
+			fmt.Println("serverToClient 1", err)
+			return err
 		}
 
 		if mt == websocket.TextMessage {
 			if len(msg) == 5 && string(msg) == "CLOSE" {
-				done <- true
-				return
+				return err
 			}
 		}
 
 		if _, err := conn.Write(msg); err != nil {
-			done <- true
-			return
+			fmt.Println("serverToClient 2", err)
+			return err
 		}
 	}
 }
@@ -655,7 +644,7 @@ func (p *ProxyServer) handleDNSQuery(udpConn *net.UDPConn, clientAddr *net.UDPAd
 	log.Printf("[UDP-DNS] DoH 查询成功，响应 %d 字节", len(dnsResponse))
 }
 
-func (p *ProxyServer) dialWebSocketWithECH(maxRetries int) (*websocket.Conn, error) {
+func (p *ProxyServer) dialWebSocketWithECH(maxRetries int) (*utils.WebSocketWrap, error) {
 	host, port, path, err := utils.ParseServerAddr(p.Config.ServerAddr)
 	if err != nil {
 		return nil, err
@@ -710,7 +699,7 @@ func (p *ProxyServer) dialWebSocketWithECH(maxRetries int) (*websocket.Conn, err
 			return nil, dialErr
 		}
 
-		return wsConn, nil
+		return utils.NewWebSocketWrap(wsConn), nil
 	}
 
 	return nil, errors.New("连接失败，已达最大重试次数")
