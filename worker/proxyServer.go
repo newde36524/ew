@@ -344,14 +344,12 @@ func (*ProxyServer) clientToServer(conn net.Conn, wsConn *utils.WebSocketWrap, d
 	for {
 		n, err := conn.Read(buf)
 		if err != nil {
-			fmt.Println("clientToServer 1", err)
 			wsConn.WriteMessage(websocket.TextMessage, []byte("CLOSE")) //nolint:errcheck
 			return err
 		}
 
 		err = wsConn.WriteMessage(websocket.BinaryMessage, buf[:n])
 		if err != nil {
-			fmt.Println("clientToServer 2", err)
 			return err
 		}
 	}
@@ -367,7 +365,6 @@ func (*ProxyServer) serverToClient(conn net.Conn, wsConn *utils.WebSocketWrap, d
 	for {
 		mt, msg, err := wsConn.ReadMessage()
 		if err != nil {
-			fmt.Println("serverToClient 1", err)
 			return err
 		}
 
@@ -378,7 +375,6 @@ func (*ProxyServer) serverToClient(conn net.Conn, wsConn *utils.WebSocketWrap, d
 		}
 
 		if _, err := conn.Write(msg); err != nil {
-			fmt.Println("serverToClient 2", err)
 			return err
 		}
 	}
