@@ -11,7 +11,6 @@ import (
 
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -74,14 +73,9 @@ func ParseServerAddr(addr string) (host, port, path string, err error) {
 	return host, port, path, nil
 }
 
-func getHostByAddr(addr string) (host string, err error) {
-	u, err := url.Parse(addr)
-	return u.Host, err
-}
-
 // ======================== 响应辅助函数 ========================
 
-func SendErrorResponse(conn net.Conn, mode int) {
+func SendErrorResponse(conn io.ReadWriter, mode int) {
 	switch mode {
 	case ModeSOCKS5:
 		conn.Write([]byte{0x05, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
@@ -90,7 +84,7 @@ func SendErrorResponse(conn net.Conn, mode int) {
 	}
 }
 
-func SendSuccessResponse(conn net.Conn, mode int) error {
+func SendSuccessResponse(conn io.ReadWriter, mode int) error {
 	switch mode {
 	case ModeSOCKS5:
 		// SOCKS5 成功响应
@@ -108,7 +102,7 @@ func SendSuccessResponse(conn net.Conn, mode int) error {
 }
 
 // HandleDirectConnection 处理直连（绕过代理）
-func HandleDirectConnection(conn net.Conn, target, clientAddr string, mode int, firstFrame string) error {
+func HandleDirectConnection(conn io.ReadWriter, target, clientAddr string, mode int, firstFrame string) error {
 	// 解析目标地址
 	_, _, err := net.SplitHostPort(target)
 	if err != nil {

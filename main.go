@@ -101,15 +101,14 @@ func safeExit() {
 
 // run 启动代理
 func run() {
-	config := &worker.ProxyServerConfig{
-		ListenAddr: listenAddr,
+	config := &worker.ProxyClientConfig{
 		ServerAddr: serverAddr,
 		ServerIP:   serverIP,
 		Token:      token,
 	}
 	ipLoader := worker.NewIPLoader(routingMode)
 	ech := worker.NewEch(dnsServer, echDomain)
-	proxyServer := worker.NewProxyServer(config, ipLoader, ech)
+	proxyServer := worker.NewProxyServer(listenAddr, config, ipLoader, ech)
 	if err := proxyServer.Run(); err != nil {
 		log.Fatal(err)
 	}

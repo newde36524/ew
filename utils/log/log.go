@@ -4,6 +4,8 @@ import (
 	"fmt"
 )
 
+var IsShow = true
+
 type LogInfo struct {
 	format string
 	method string
@@ -30,15 +32,22 @@ func init() {
 	}()
 }
 
+func pushLogInfo(logInfo LogInfo) {
+	if !IsShow {
+		return
+	}
+	go func() {
+		logChan <- logInfo
+	}()
+}
+
 func Printf(format string, v ...any) {
 	l := LogInfo{
 		format: format,
 		method: "Printf",
 		v:      append([]any{}, v...),
 	}
-	go func() {
-		logChan <- l
-	}()
+	pushLogInfo(l)
 }
 
 func Println(v ...any) {
@@ -46,9 +55,7 @@ func Println(v ...any) {
 		method: "Println",
 		v:      append([]any{}, v...),
 	}
-	go func() {
-		logChan <- l
-	}()
+	pushLogInfo(l)
 }
 
 func Fatal(v ...any) {
@@ -56,9 +63,7 @@ func Fatal(v ...any) {
 		method: "Fatal",
 		v:      append([]any{}, v...),
 	}
-	go func() {
-		logChan <- l
-	}()
+	pushLogInfo(l)
 }
 
 func Fatalf(format string, v ...any) {
@@ -67,7 +72,5 @@ func Fatalf(format string, v ...any) {
 		method: "Fatalf",
 		v:      append([]any{}, v...),
 	}
-	go func() {
-		logChan <- l
-	}()
+	pushLogInfo(l)
 }
