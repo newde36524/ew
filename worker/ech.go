@@ -19,6 +19,7 @@ type Ech struct {
 	echDomain string
 	echListMu sync.RWMutex
 	echList   []byte
+	tlsConfig utils.Store[*tls.Config]
 }
 
 func NewEch(dnsServer, echDomain string) *Ech {
@@ -65,16 +66,18 @@ func (e *Ech) BuildTLSConfigWithECH(serverName string, echList []byte) (*tls.Con
 	if len(echList) == 0 {
 		return nil, errors.New("ECH 配置为空，这是必需功能")
 	}
-	config, err := utils.BuildTLSConfigWithECH(serverName)
-	if err != nil {
-		return nil, err
-	}
-	// 使用反射设置 ECH 字段（ECH 是核心功能，必须设置成功）
-	if err := e.setECHConfig(config, echList); err != nil {
-		return nil, fmt.Errorf("设置 ECH 配置失败（需要 Go 1.23+ 或支持 ECH 的版本）: %w", err)
-	}
-
-	return config, nil
+	// 尝试从缓存获取
+	return e.tlsConfig.GetOrStore(func() (*tls.Config, error) {
+		config, err := utils.BuildTLSConfigWithECH(serverName)
+		if err != nil {
+			return nil, err
+		}
+		// 使用反射设置 ECH 字段（ECH 是核心功能，必须设置成功）
+		if err := e.setECHConfig(config, echList); err != nil {
+			return nil, fmt.Errorf("设置 ECH 配置失败（需要 Go 1.23+ 或支持 ECH 的版本）: %w", err)
+		}
+		return config, nil
+	})
 }
 
 // setECHConfig 使用反射设置 ECH 配置（ECH 是核心功能，必须成功）

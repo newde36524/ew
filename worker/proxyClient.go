@@ -9,8 +9,8 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -18,8 +18,22 @@ import (
 	"github.com/newde36524/ew/utils/log"
 )
 
+var (
+	headerBlacklist = map[string]bool{
+		"proxy-connection":    true,
+		"proxy-authorization": true,
+		"user-agent":          true,
+	}
+	// 使用 sync.Pool 复用缓冲区
+	bufferPool = sync.Pool{
+		New: func() any {
+			return make([]byte, 32*1024)
+		},
+	}
+)
+
 type ProxyClient struct {
-	Conn         io.ReadWriter
+	Conn         net.Conn
 	wsConn       *utils.WebSocketWrap
 	clientAddr   string
 	clientConfig *ProxyClientConfig
@@ -28,7 +42,7 @@ type ProxyClient struct {
 	done         chan struct{}
 }
 
-func NewProxyClient(conn io.ReadWriter, clientAddr string, config *ProxyClientConfig, ipLoader *IPLoader, ech *Ech) *ProxyClient {
+func NewProxyClient(conn net.Conn, clientAddr string, config *ProxyClientConfig, ipLoader *IPLoader, ech *Ech) *ProxyClient {
 	return &ProxyClient{
 		Conn:         conn,
 		clientConfig: config,
@@ -50,14 +64,14 @@ func (p *ProxyClient) wait() {
 }
 
 func (p *ProxyClient) ReadFirstByte() byte {
-	// p.Conn.SetDeadline(time.Now().Add(60 * time.Second))
-	// defer p.Conn.SetDeadline(time.Time{})
+	p.Conn.SetDeadline(time.Now().Add(30 * time.Second))
 	// 读取第一个字节判断协议
 	buf := make([]byte, 1)
 	n, err := p.Conn.Read(buf)
 	if err != nil || n == 0 {
 		return 0
 	}
+	p.Conn.SetDeadline(time.Time{})
 	return buf[0]
 }
 
@@ -75,13 +89,8 @@ func (p *ProxyClient) handleHTTP(firstByte byte) {
 		p.Conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n")) //nolint:errcheck
 		return
 	}
-	delHeader := []string{
-		"proxy-connection",
-		"proxy-authorization",
-		"user-agent",
-	}
 	for key := range req.Header {
-		if slices.Contains(delHeader, strings.ToLower(key)) {
+		if headerBlacklist[strings.ToLower(key)] {
 			req.Header.Del(key)
 		}
 	}
@@ -185,7 +194,8 @@ func (p *ProxyClient) clientToServer() error {
 		default:
 		}
 	}()
-	buf := make([]byte, 32*1024)
+	buf := bufferPool.Get().([]byte)
+	defer bufferPool.Put(buf)
 	for {
 		n, err := p.Conn.Read(buf)
 		if err != nil {

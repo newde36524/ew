@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 type WebSocketWrap struct {
-	mu       sync.Mutex
 	wsConn   *websocket.Conn
 	stopPing chan struct{}
 }
@@ -25,8 +23,6 @@ func NewWebSocketWrap(wsConn *websocket.Conn) *WebSocketWrap {
 }
 
 func (w *WebSocketWrap) WriteMessage(messageType int, data []byte) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	return w.wsConn.WriteMessage(messageType, data)
 }
 

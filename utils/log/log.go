@@ -36,9 +36,11 @@ func pushLogInfo(logInfo LogInfo) {
 	if !IsShow {
 		return
 	}
-	go func() {
-		logChan <- logInfo
-	}()
+	select {
+	case logChan <- logInfo:
+	default:
+		// 队列满时丢弃日志，避免阻塞
+	}
 }
 
 func Printf(format string, v ...any) {
