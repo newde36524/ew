@@ -1,6 +1,6 @@
 
 # 使用 BUILDPLATFORM 确保构建阶段使用本机架构，避免模拟性能损耗
-FROM --platform=$BUILDPLATFORM golang:1.25.5 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.23 AS builder
 
 # 接收 Docker 注入的目标平台参数
 ARG TARGETOS

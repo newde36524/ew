@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 type WebSocketWrap struct {
-	mu       sync.Mutex
 	wsConn   *websocket.Conn
 	stopPing chan struct{}
 }
@@ -25,8 +23,6 @@ func NewWebSocketWrap(wsConn *websocket.Conn) *WebSocketWrap {
 }
 
 func (w *WebSocketWrap) WriteMessage(messageType int, data []byte) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	return w.wsConn.WriteMessage(messageType, data)
 }
 
@@ -53,19 +49,15 @@ func (w *WebSocketWrap) KeepAlive() {
 }
 
 func (w *WebSocketWrap) Connenct(conn io.ReadWriter, target, firstFrame string, mode int) error {
-	// 如果没有预设的 firstFrame，尝试读取第一帧数据（仅 SOCKS5）
-	if mode == ModeSOCKS5 && len(firstFrame) == 0 {
-		// _ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-		buffer := make([]byte, 32*1024)
-		n, _ := conn.Read(buffer)
-		// _ = conn.SetReadDeadline(time.Time{})
-		if n > 0 {
-			firstFrame = string(buffer[:n])
-		}
-	}
+	// SOCKS5 不需要在连接时读取首帧数据
+	// 实际的请求数据会在连接建立后通过双向转发传输
 
 	// 发送连接请求
 	connectMsg := fmt.Sprintf("CONNECT:%s|%s", target, firstFrame)
+	// 如果是 SOCKS5 模式，添加 base64: 前缀（即使首帧为空也添加前缀）
+	if mode == ModeSOCKS5 {
+		connectMsg = fmt.Sprintf("CONNECT:%s|base64:%s", target, firstFrame)
+	}
 	if err := w.WriteMessage(websocket.TextMessage, []byte(connectMsg)); err != nil {
 		SendErrorResponse(conn, mode)
 		return err

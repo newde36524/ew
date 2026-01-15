@@ -12,7 +12,6 @@ import (
 
 	"net"
 	"strings"
-	"sync"
 
 	"github.com/newde36524/ew/utils"
 )
@@ -31,15 +30,13 @@ type ipRangeV6 struct {
 
 type IPLoader struct {
 	// 中国IP列表（IPv4）
-	chinaIPRangesMu sync.RWMutex
-	chinaIPRanges   []ipRange
+	chinaIPRanges utils.Store[[]ipRange]
 
 	// 中国IP列表（IPv6）
-	chinaIPV6RangesMu sync.RWMutex
-	chinaIPV6Ranges   []ipRangeV6
-	routingMode       string
-	ipv4DataSync      utils.DataSync
-	ipv6DataSync      utils.DataSync
+	chinaIPV6Ranges utils.Store[[]ipRangeV6]
+	routingMode     string
+	ipv4DataSync    utils.DataSync
+	ipv6DataSync    utils.DataSync
 }
 
 func NewIPLoader(routingMode string) *IPLoader {
@@ -87,17 +84,13 @@ func (i *IPLoader) LoadWithRoutingMode() {
 		if err := i.LoadChinaIPList(); err != nil {
 			log.Printf("[警告] 加载中国IPv4列表失败: %v", err)
 		} else {
-			i.chinaIPRangesMu.RLock()
-			ipv4Count = len(i.chinaIPRanges)
-			i.chinaIPRangesMu.RUnlock()
+			ipv4Count = len(i.chinaIPRanges.Get())
 		}
 
 		if err := i.LoadChinaIPV6List(); err != nil {
 			log.Printf("[警告] 加载中国IPv6列表失败: %v", err)
 		} else {
-			i.chinaIPV6RangesMu.RLock()
-			ipv6Count = len(i.chinaIPV6Ranges)
-			i.chinaIPV6RangesMu.RUnlock()
+			ipv6Count = len(i.chinaIPV6Ranges.Get())
 		}
 
 		if ipv4Count > 0 || ipv6Count > 0 {
@@ -129,14 +122,11 @@ func (i *IPLoader) IsChinaIP(ipStr string) bool {
 			return false
 		}
 
-		i.chinaIPRangesMu.RLock()
-		defer i.chinaIPRangesMu.RUnlock()
-
 		// 二分查找
-		left, right := 0, len(i.chinaIPRanges)
+		left, right := 0, len(i.chinaIPRanges.Get())
 		for left < right {
 			mid := (left + right) / 2
-			r := i.chinaIPRanges[mid]
+			r := i.chinaIPRanges.Get()[mid]
 			if ipUint32 < r.start {
 				right = mid
 			} else if ipUint32 > r.end {
@@ -149,161 +139,158 @@ func (i *IPLoader) IsChinaIP(ipStr string) bool {
 	}
 
 	// 检查IPv6
-	ipBytes := ip.To16()
-	if ipBytes == nil {
-		return false
+	if ipBytes := ip.To16(); ipBytes != nil {
+		var ipArray [16]byte
+		copy(ipArray[:], ipBytes)
+
+		// 二分查找IPv6
+		left, right := 0, len(i.chinaIPV6Ranges.Get())
+		for left < right {
+			mid := (left + right) / 2
+			r := i.chinaIPV6Ranges.Get()[mid]
+
+			// 比较起始IP
+			cmpStart := utils.CompareIPv6(ipArray, r.start)
+			if cmpStart < 0 {
+				right = mid
+				continue
+			}
+
+			// 比较结束IP
+			cmpEnd := utils.CompareIPv6(ipArray, r.end)
+			if cmpEnd > 0 {
+				left = mid + 1
+				continue
+			}
+
+			// 在范围内
+			return true
+		}
 	}
 
-	var ipArray [16]byte
-	copy(ipArray[:], ipBytes)
-
-	i.chinaIPV6RangesMu.RLock()
-	defer i.chinaIPV6RangesMu.RUnlock()
-
-	// 二分查找IPv6
-	left, right := 0, len(i.chinaIPV6Ranges)
-	for left < right {
-		mid := (left + right) / 2
-		r := i.chinaIPV6Ranges[mid]
-
-		// 比较起始IP
-		cmpStart := utils.CompareIPv6(ipArray, r.start)
-		if cmpStart < 0 {
-			right = mid
-			continue
-		}
-
-		// 比较结束IP
-		cmpEnd := utils.CompareIPv6(ipArray, r.end)
-		if cmpEnd > 0 {
-			left = mid + 1
-			continue
-		}
-
-		// 在范围内
-		return true
-	}
 	return false
 }
 
 // LoadChinaIPList 从程序目录加载中国IP列表
 func (i *IPLoader) LoadChinaIPList() error {
-	data, err := i.ipv4DataSync.Sync()
-	if err != nil {
-		return err
-	}
-	var ranges []ipRange
-	scanner := bufio.NewScanner(bytes.NewBuffer(data))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if len(line) == 0 || strings.HasPrefix(line, "#") {
-			continue
+	_, err := i.chinaIPRanges.GetOrStore(func() ([]ipRange, error) {
+		data, err := i.ipv4DataSync.Sync()
+		if err != nil {
+			return nil, err
 		}
+		var ranges []ipRange
+		scanner := bufio.NewScanner(bytes.NewBuffer(data))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if len(line) == 0 || strings.HasPrefix(line, "#") {
+				continue
+			}
 
-		parts := strings.Fields(line)
-		if len(parts) < 2 {
-			continue
-		}
+			parts := strings.Fields(line)
+			if len(parts) < 2 {
+				continue
+			}
 
-		startIP := net.ParseIP(parts[0])
-		endIP := net.ParseIP(parts[1])
-		if startIP == nil || endIP == nil {
-			continue
-		}
+			startIP := net.ParseIP(parts[0])
+			endIP := net.ParseIP(parts[1])
+			if startIP == nil || endIP == nil {
+				continue
+			}
 
-		start := utils.IpToUint32(startIP)
-		end := utils.IpToUint32(endIP)
-		if start > 0 && end > 0 && start <= end {
-			ranges = append(ranges, ipRange{start: start, end: end})
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("读取IP列表文件失败: %w", err)
-	}
-
-	if len(ranges) == 0 {
-		return errors.New("IP列表为空")
-	}
-
-	// 按起始IP排序
-	for i := 0; i < len(ranges)-1; i++ {
-		for j := i + 1; j < len(ranges); j++ {
-			if ranges[i].start > ranges[j].start {
-				ranges[i], ranges[j] = ranges[j], ranges[i]
+			start := utils.IpToUint32(startIP)
+			end := utils.IpToUint32(endIP)
+			if start > 0 && end > 0 && start <= end {
+				ranges = append(ranges, ipRange{start: start, end: end})
 			}
 		}
-	}
-	i.chinaIPRangesMu.Lock()
-	i.chinaIPRanges = ranges
-	i.chinaIPRangesMu.Unlock()
-	return nil
+
+		if err := scanner.Err(); err != nil {
+			return nil, fmt.Errorf("读取IP列表文件失败: %w", err)
+		}
+
+		if len(ranges) == 0 {
+			return nil, errors.New("IP列表为空")
+		}
+
+		// 按起始IP排序
+		for i := 0; i < len(ranges)-1; i++ {
+			for j := i + 1; j < len(ranges); j++ {
+				if ranges[i].start > ranges[j].start {
+					ranges[i], ranges[j] = ranges[j], ranges[i]
+				}
+			}
+		}
+
+		return ranges, nil
+	})
+
+	return err
 }
 
 // LoadChinaIPV6List 从程序目录加载中国IPv6 IP列表
 func (i *IPLoader) LoadChinaIPV6List() error {
-	data, err := i.ipv6DataSync.Sync()
-	if err != nil {
-		return err
-	}
-	var ranges []ipRangeV6
-	scanner := bufio.NewScanner(bytes.NewBuffer(data))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if len(line) == 0 || strings.HasPrefix(line, "#") {
-			continue
+	_, err := i.chinaIPV6Ranges.GetOrStore(func() ([]ipRangeV6, error) {
+		data, err := i.ipv6DataSync.Sync()
+		if err != nil {
+			return nil, err
 		}
+		var ranges []ipRangeV6
+		scanner := bufio.NewScanner(bytes.NewBuffer(data))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if len(line) == 0 || strings.HasPrefix(line, "#") {
+				continue
+			}
 
-		parts := strings.Fields(line)
-		if len(parts) < 2 {
-			continue
-		}
+			parts := strings.Fields(line)
+			if len(parts) < 2 {
+				continue
+			}
 
-		startIP := net.ParseIP(parts[0])
-		endIP := net.ParseIP(parts[1])
-		if startIP == nil || endIP == nil {
-			continue
-		}
+			startIP := net.ParseIP(parts[0])
+			endIP := net.ParseIP(parts[1])
+			if startIP == nil || endIP == nil {
+				continue
+			}
 
-		// 转换为16字节数组
-		startBytes := startIP.To16()
-		endBytes := endIP.To16()
-		if startBytes == nil || endBytes == nil {
-			continue
-		}
+			// 转换为16字节数组
+			startBytes := startIP.To16()
+			endBytes := endIP.To16()
+			if startBytes == nil || endBytes == nil {
+				continue
+			}
 
-		var start, end [16]byte
-		copy(start[:], startBytes)
-		copy(end[:], endBytes)
+			var start, end [16]byte
+			copy(start[:], startBytes)
+			copy(end[:], endBytes)
 
-		// 检查范围是否有效
-		if utils.CompareIPv6(start, end) <= 0 {
-			ranges = append(ranges, ipRangeV6{start: start, end: end})
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("读取IPv6 IP列表文件失败: %w", err)
-	}
-
-	if len(ranges) == 0 {
-		// IPv6列表为空不算错误，可能文件不存在或为空
-		return nil
-	}
-
-	// 按起始IP排序
-	for i := 0; i < len(ranges)-1; i++ {
-		for j := i + 1; j < len(ranges); j++ {
-			if utils.CompareIPv6(ranges[i].start, ranges[j].start) > 0 {
-				ranges[i], ranges[j] = ranges[j], ranges[i]
+			// 检查范围是否有效
+			if utils.CompareIPv6(start, end) <= 0 {
+				ranges = append(ranges, ipRangeV6{start: start, end: end})
 			}
 		}
-	}
 
-	i.chinaIPV6RangesMu.Lock()
-	i.chinaIPV6Ranges = ranges
-	i.chinaIPV6RangesMu.Unlock()
-	return nil
+		if err := scanner.Err(); err != nil {
+			return nil, fmt.Errorf("读取IPv6 IP列表文件失败: %w", err)
+		}
+
+		if len(ranges) == 0 {
+			// IPv6列表为空不算错误，可能文件不存在或为空
+			return nil, nil
+		}
+
+		// 按起始IP排序
+		for i := 0; i < len(ranges)-1; i++ {
+			for j := i + 1; j < len(ranges); j++ {
+				if utils.CompareIPv6(ranges[i].start, ranges[j].start) > 0 {
+					ranges[i], ranges[j] = ranges[j], ranges[i]
+				}
+			}
+		}
+		return ranges, nil
+	})
+
+	return err
 }
 
 // ShouldBypassProxy 根据分流模式判断是否应该绕过代理（直连）

@@ -124,7 +124,13 @@ async function handleSession(webSocket) {
 
         // 发送首帧数据（如果有）
         if (firstFrameData && firstFrameData.length > 0) {
-          await remoteWriter.write(encoder.encode(firstFrameData));
+          // 检查是否是 Base64 编码（SOCKS5 二进制数据）
+          let dataToSend = firstFrameData;
+          if (firstFrameData.startsWith('base64:')) {
+            // Base64 解码
+            dataToSend = atob(firstFrameData.substring(7));
+          }
+          await remoteWriter.write(encoder.encode(dataToSend));
         }
 
         webSocket.send('CONNECTED');
