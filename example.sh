@@ -1,0 +1,1 @@
+docker run --rm -p 30000:30000 lwjgluavjhcp.ap-northeast-1.clawcloudrun.com/718114245/ew

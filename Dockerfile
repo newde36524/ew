@@ -31,7 +31,5 @@ WORKDIR /app
 
 # 从编译阶段复制二进制文件
 COPY --from=builder /app/app /app/app
-COPY ./chn_ip_v6.txt /app/chn_ip_v6.txt
-COPY ./chn_ip.txt /app/chn_ip.txt
 
 ENTRYPOINT ["./app"]
